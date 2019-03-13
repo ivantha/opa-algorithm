@@ -46,7 +46,7 @@ def preprocess_dataset():
 
     msk = np.asarray(msk)
 
-    return df_X[msk], df_X[~msk], df_Y[msk], df_Y[~msk]
+    return df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
 
 
 def generate_opa(c):
@@ -59,37 +59,51 @@ def generate_opa(c):
 
     return opa
 
-def get_accuracy(x_values, y_values, w):
 
-
-
-if __name__ == '__main__':
-    df_x_train, df_x_test, df_y_train, df_y_test = preprocess_dataset()
-
+def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1):
     num_features = len(df_x_train.columns)  # number of features
     w = np.zeros(num_features)  # weights
 
     c = 1
     opa = generate_opa(c)  # generate online passive aggressive function
 
-    for i in range(10):
+    train_accuracies = []
+    test_accuracies = []
+
+    for i in range(n_iter):
+        # train
         for index, row in df_x_train.iterrows():
             x = row.to_numpy()
             y = df_y_train[index]
-            y_pred = sign(np.dot(w, x))
-
             w, loss = opa(x, y, w)
 
-        total = 0
-        count = 0
-        for index, row in df_x_test.iterrows():
-            x = row.to_numpy()
-            y = df_y_test[index]
-            y_pred = sign(np.dot(w, x))
+        # get accuracy
+        train_accuracies.append(get_accuracy(df_x_train, df_y_train, w))
+        test_accuracies.append(get_accuracy(df_x_test, df_y_test, w))
 
-            accuracy = (1 - abs((y_pred - y) / y)) * 100
+    print(train_accuracies)
+    print(test_accuracies)
 
-            total += accuracy
-            count += 1
 
-        print(total/count)
+def get_accuracy(df_x, df_y, w):
+    y_pred = np.zeros(df_y.shape)
+    print(df_y.shape)
+    print(y_pred.shape)
+    print("___________________________________________________")
+
+    for index, row in df_x.iterrows():
+        x = row.to_numpy()
+        print(x)
+        print(index)
+        continue
+        y_pred[index] = sign(np.dot(w, x))
+
+
+    accuracy = ((1 - abs((np.asarray(y_pred) - df_y) / df_y)) * 100).mean()
+    return accuracy
+
+
+if __name__ == '__main__':
+    df_x_train, df_y_train, df_x_test, df_y_test = preprocess_dataset()
+
+    train(df_x_train, df_y_train, df_x_test, df_y_test)
