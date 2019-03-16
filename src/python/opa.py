@@ -25,63 +25,48 @@ def preprocess_dataset():
         "class"
     ]
 
-    # remove 1st attribute
-    data = data.drop([data.columns[0]], axis=1)
-
     # replace class (2, 4) with (-1, +1)
     data['class'] = data['class'].map({4: 1, 2: -1})
 
     df_X = data.loc[:, "clump_thickness":"mitoses"]
     df_Y = data["class"]
 
-    # mask to split data into train and test sets
-    msk = np.random.rand(len(data)) < (2 / 3)
+    # mask to split data into train and test sets randomly
+    # msk = np.random.rand(len(data)) < (2 / 3)
 
-    msk = []
-    for i in range(len(data)):
-        if i <= (int(len(data) * 2 / 3)):
-            msk += [True]
-        else:
-            msk += [False]
-
+    q = int(len(data) * 2 / 3)
+    msk = ([True] * q) + ([False] * (len(data) - q))
     msk = np.asarray(msk)
 
     # x_train, y_train, x_test, y_test
-    return df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
+    return data, df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
 
 
+# generate online passive aggressive function
 def generate_opa(pa, c):
     if pa == 0:
-        def opa(x, y, w):
-            loss = max(0, 1 - (y * np.dot(w, x)))
-            lagrange_multiplier = loss / np.power(np.linalg.norm(x), 2)
-            w_new = w + (lagrange_multiplier * y * x)
-            return w_new, loss
-
-        return opa
+        def lagrange_multiplier(loss, x):
+            return loss / np.power(np.linalg.norm(x), 2)
     elif pa == 1:
-        def opa(x, y, w):
-            loss = max(0, 1 - (y * np.dot(w, x)))
-            lagrange_multiplier = min(c, loss / np.power(np.linalg.norm(x), 2))
-            w_new = w + (lagrange_multiplier * y * x)
-            return w_new, loss
-
-        return opa
+        def lagrange_multiplier(loss, x):
+            return min(c, loss / np.power(np.linalg.norm(x), 2))
     elif pa == 2:
-        def opa(x, y, w):
-            loss = max(0, 1 - (y * np.dot(w, x)))
-            lagrange_multiplier = loss / (np.power(np.linalg.norm(x), 2) + (1 / (2 * c)))
-            w_new = w + (lagrange_multiplier * y * x)
-            return w_new, loss
+        def lagrange_multiplier(loss, x):
+            return loss / (np.power(np.linalg.norm(x), 2) + (1 / (2 * c)))
 
-        return opa
+    def opa(x, y, w):
+        loss = max(0, 1 - (y * np.dot(w, x)))
+        w_new = w + (lagrange_multiplier(loss, x) * y * x)
+        return w_new, loss
+
+    return opa
 
 
-def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1):
+def train(df, df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1):
     num_features = len(df_x_train.columns)  # number of features
     w = np.zeros(num_features)  # weights
 
-    opa = generate_opa(pa, c)  # generate online passive aggressive function
+    opa = generate_opa(pa, c)
 
     train_accuracies = []
     test_accuracies = []
@@ -93,42 +78,70 @@ def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1):
             y = df_y_train[index]
             w, loss = opa(x, y, w)
 
-        # get accuracy
-        train_accuracies.append(get_accuracy(df_x_train, df_y_train, w))
-        test_accuracies.append(get_accuracy(df_x_test, df_y_test, w))
+        # get predictions
+        y_pred_train = get_prediction(df_x_train, w)
+        y_pred_test = get_prediction(df_x_test, w)
+
+        # save output to a csv
+        save_output(df, df_y_train, y_pred_train, pa, i, "train")
+        save_output(df, df_y_test, y_pred_test, pa, i, "test")
+
+        # calculate accuracies
+        train_accuracy = (y_pred_train == df_y_train).mean() * 100
+        test_accuracy = (y_pred_test == df_y_test).mean() * 100
+
+        train_accuracies.append(train_accuracy)
+        test_accuracies.append(test_accuracy)
 
     return train_accuracies, test_accuracies
 
 
-def get_accuracy(df_x, df_y, w):
+def get_prediction(df_x, w):
     y_pred = []
 
     for index, row in df_x.iterrows():
         x = row.to_numpy()
         y_pred.append(sign(np.dot(w, x)))
 
-    accuracy = (y_pred == df_y).mean() * 100
-    return accuracy
+    return y_pred
 
 
-def print_train_results(pa, train_result):
-    print("PA version : ", pa)
-    print("Iteration count : ")
-    print(train_result[0])
-    print(np.asarray(train_result[0]).mean())
-    print(train_result[1])
-    print(np.asarray(train_result[1]).mean())
+def save_output(df, df_y, y_pred, pa, n_iter, type):
+    pd_out = pd.concat(
+        [
+            df["sample_code_number"],
+            df_y,
+            pd.DataFrame(data=y_pred, columns=["PREDICTION"])
+        ],
+        axis=1,
+        sort=False)
+
+    file_name = "pa {} - iter {} - {}".format(pa, n_iter, type)
+    pd_out.to_csv("./output/{}.csv".format(file_name), encoding='utf-8', sep=',')
+
+
+def print_train_results(pa, n_iter, train_result):
+    print("PA version :", pa)
+    print("Iteration count :", n_iter)
+
+    print("Accuracy of training set over the iterations -> ")
+    for i in range(n_iter):
+        print("{} : {}".format(i, train_result[0][i]))
+    print("")
+
+    print("Accuracy of testing set over the iterations -> ")
+    for i in range(n_iter):
+        print("{} : {}".format(i, train_result[1][i]))
     print("")
 
 
 if __name__ == '__main__':
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_colwidth', 30)
+    df, df_x_train, df_y_train, df_x_test, df_y_test = preprocess_dataset()
 
-    df_x_train, df_y_train, df_x_test, df_y_test = preprocess_dataset()
-
-    iter = int(input('Please enter the desired number of iterations (>0) : '))
+    n_iter = int(input('Please enter the desired number of iterations (>0) : '))
     pa = int(input('Please enter the version of the PA algorithm (0,1,2) : '))
     c = int(input('Please enter the desired c value (>0) : '))
 
-    print_train_results(pa, train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=iter, pa=pa, c=1))
+    print_train_results(pa, n_iter, train(df, df_x_train, df_y_train, df_x_test, df_y_test, n_iter=n_iter, pa=pa, c=c))
+
+    # TODO : Add save to csv
