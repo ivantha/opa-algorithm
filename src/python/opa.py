@@ -8,28 +8,28 @@ def sign(x):
 
 def preprocess_dataset():
     # load data
-    data = pd.read_csv("../../data/datafile.csv", delimiter=",")
+    data = pd.read_csv('../../data/datafile.csv', delimiter=",")
 
     # assign column names > for easiness in referencing
     data.columns = [
-        "sample_code_number",
-        "clump_thickness",
-        "uniformity_of_cell_size",
-        "uniformity_of_cell_shape",
-        "marginal_adhesion",
-        "single_epithelial_cell_size",
-        "bare_nuclei",
-        "bland_chromatin",
-        "normal_nucleoli",
-        "mitoses",
-        "class"
+        'sample_code_number',
+        'clump_thickness',
+        'uniformity_of_cell_size',
+        'uniformity_of_cell_shape',
+        'marginal_adhesion',
+        'single_epithelial_cell_size',
+        'bare_nuclei',
+        'bland_chromatin',
+        'normal_nucleoli',
+        'mitoses',
+        'class'
     ]
 
     # replace class (2, 4) with (-1, +1)
     data['class'] = data['class'].map({4: 1, 2: -1})
 
-    df_X = data.loc[:, "clump_thickness":"mitoses"]
-    df_Y = data["class"]
+    df_X = data.loc[:, 'clump_thickness':'mitoses']
+    df_Y = data['class']
 
     # mask to split data into train and test sets randomly
     # msk = np.random.rand(len(data)) < (2 / 3)
@@ -83,8 +83,8 @@ def train(df, df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1)
         y_pred_test = get_prediction(df_x_test, w)
 
         # save output to a csv
-        save_output(df, df_y_train, y_pred_train, pa, i, "train")
-        save_output(df, df_y_test, y_pred_test, pa, i, "test")
+        save_output(df, df_y_train, y_pred_train, pa, i, 'train')
+        save_output(df, df_y_test, y_pred_test, pa, i, 'test')
 
         # calculate accuracies
         train_accuracy = (y_pred_train == df_y_train).mean() * 100
@@ -97,11 +97,11 @@ def train(df, df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1)
 
 
 def get_prediction(df_x, w):
-    y_pred = []
+    y_pred = pd.Series()
 
     for index, row in df_x.iterrows():
         x = row.to_numpy()
-        y_pred.append(sign(np.dot(w, x)))
+        y_pred.loc[index] = sign(np.dot(w, x))
 
     return y_pred
 
@@ -109,30 +109,34 @@ def get_prediction(df_x, w):
 def save_output(df, df_y, y_pred, pa, n_iter, type):
     pd_out = pd.concat(
         [
-            df["sample_code_number"],
+            df['sample_code_number'],
             df_y,
-            pd.DataFrame(data=y_pred, columns=["PREDICTION"])
+            y_pred
         ],
         axis=1,
-        sort=False)
+        sort=False,
+        join='inner'
+    )
+    pd_out.columns = ['sample_code_number', 'class', 'PREDICTION']
 
-    file_name = "pa {} - iter {} - {}".format(pa, n_iter, type)
-    pd_out.to_csv("./output/{}.csv".format(file_name), encoding='utf-8', sep=',')
+    file_name = 'pa {} - iter {} - {}'.format(pa, n_iter, type)
+    pd_out.to_csv('./output/{}.csv'.format(file_name), encoding='utf-8', sep=',')
 
 
 def print_train_results(pa, n_iter, train_result):
-    print("PA version :", pa)
-    print("Iteration count :", n_iter)
+    print('PA version :', pa)
+    print('Iteration count :', n_iter)
+    print('')
 
-    print("Accuracy of training set over the iterations -> ")
+    print('Accuracy of training set over the iterations -> ')
     for i in range(n_iter):
-        print("{} : {}".format(i, train_result[0][i]))
-    print("")
+        print('{} : {}'.format(i, train_result[0][i]))
+    print('')
 
-    print("Accuracy of testing set over the iterations -> ")
+    print('Accuracy of testing set over the iterations -> ')
     for i in range(n_iter):
-        print("{} : {}".format(i, train_result[1][i]))
-    print("")
+        print('{} : {}'.format(i, train_result[1][i]))
+    print('')
 
 
 if __name__ == '__main__':
@@ -143,5 +147,3 @@ if __name__ == '__main__':
     c = int(input('Please enter the desired c value (>0) : '))
 
     print_train_results(pa, n_iter, train(df, df_x_train, df_y_train, df_x_test, df_y_test, n_iter=n_iter, pa=pa, c=c))
-
-    # TODO : Add save to csv
