@@ -46,26 +46,48 @@ def preprocess_dataset():
 
     msk = np.asarray(msk)
 
+    # x_train, y_train, x_test, y_test
     return df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
 
 
-def generate_opa(c):
-    def opa(x, y, w):
-        loss = max(0, 1 - (y * np.dot(w, x)))
-        lagrange_multiplier = min(c, loss / np.power(np.linalg.norm(x), 2))
-        w_new = w + (lagrange_multiplier * y * x)
+def generate_opa(c, pa=1):
+    if pa == 0:
+        def opa(x, y, w):
+            loss = max(0, 1 - (y * np.dot(w, x)))
+            lagrange_multiplier = loss / np.power(np.linalg.norm(x), 2)
+            w_new = w + (lagrange_multiplier * y * x)
+            return w_new, loss
 
-        return w_new, loss
+        return opa
 
-    return opa
+    elif pa == 1:
+        def opa(x, y, w):
+            loss = max(0, 1 - (y * np.dot(w, x)))
+            lagrange_multiplier = min(c, loss / np.power(np.linalg.norm(x), 2))
+            w_new = w + (lagrange_multiplier * y * x)
+            return w_new, loss
+
+        return opa
+
+    elif pa == 2:
+        def opa(x, y, w):
+            loss = max(0, 1 - (y * np.dot(w, x)))
+            lagrange_multiplier = loss / (np.power(np.linalg.norm(x), 2) + (1 / (2 * c)))
+            w_new = w + (lagrange_multiplier * y * x)
+            return w_new, loss
+
+        return opa
+
+    else:
+        return -1
 
 
-def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1):
+def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1):
     num_features = len(df_x_train.columns)  # number of features
     w = np.zeros(num_features)  # weights
 
     c = 1
-    opa = generate_opa(c)  # generate online passive aggressive function
+    opa = generate_opa(c, pa)  # generate online passive aggressive function
 
     train_accuracies = []
     test_accuracies = []
@@ -81,29 +103,32 @@ def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1):
         train_accuracies.append(get_accuracy(df_x_train, df_y_train, w))
         test_accuracies.append(get_accuracy(df_x_test, df_y_test, w))
 
-    print(train_accuracies)
-    print(test_accuracies)
+    return train_accuracies, test_accuracies
 
 
 def get_accuracy(df_x, df_y, w):
-    y_pred = np.zeros(df_y.shape)
-    print(df_y.shape)
-    print(y_pred.shape)
-    print("___________________________________________________")
+    y_pred = []
 
     for index, row in df_x.iterrows():
         x = row.to_numpy()
-        print(x)
-        print(index)
-        continue
-        y_pred[index] = sign(np.dot(w, x))
-
+        y_pred.append(sign(np.dot(w, x)))
 
     accuracy = ((1 - abs((np.asarray(y_pred) - df_y) / df_y)) * 100).mean()
     return accuracy
 
 
+def print_train_results(pa, train_result):
+    print(pa + "_______________________________________")
+    print(train_result[0])
+    print(np.asarray(train_result[0]).mean())
+    print(train_result[1])
+    print(np.asarray(train_result[1]).mean())
+    print("")
+
+
 if __name__ == '__main__':
     df_x_train, df_y_train, df_x_test, df_y_test = preprocess_dataset()
 
-    train(df_x_train, df_y_train, df_x_test, df_y_test)
+    print_train_results("pa0", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=0))
+    print_train_results("pa1", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=1))
+    print_train_results("pa2", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=2))
