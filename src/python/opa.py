@@ -130,12 +130,12 @@ def print_train_results(pa, n_iter, train_result):
 
     print('Accuracy of training set over the iterations -> ')
     for i in range(n_iter):
-        print('{} : {}'.format(i, train_result[0][i]))
+        print('{} : {}'.format(i + 1, train_result[0][i]))
     print('')
 
     print('Accuracy of testing set over the iterations -> ')
     for i in range(n_iter):
-        print('{} : {}'.format(i, train_result[1][i]))
+        print('{} : {}'.format(i + 1, train_result[1][i]))
     print('')
 
 
