@@ -50,7 +50,7 @@ def preprocess_dataset():
     return df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
 
 
-def generate_opa(c, pa=1):
+def generate_opa(pa, c):
     if pa == 0:
         def opa(x, y, w):
             loss = max(0, 1 - (y * np.dot(w, x)))
@@ -59,7 +59,6 @@ def generate_opa(c, pa=1):
             return w_new, loss
 
         return opa
-
     elif pa == 1:
         def opa(x, y, w):
             loss = max(0, 1 - (y * np.dot(w, x)))
@@ -68,7 +67,6 @@ def generate_opa(c, pa=1):
             return w_new, loss
 
         return opa
-
     elif pa == 2:
         def opa(x, y, w):
             loss = max(0, 1 - (y * np.dot(w, x)))
@@ -78,16 +76,12 @@ def generate_opa(c, pa=1):
 
         return opa
 
-    else:
-        return -1
 
-
-def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1):
+def train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=1, pa=1, c=1):
     num_features = len(df_x_train.columns)  # number of features
     w = np.zeros(num_features)  # weights
 
-    c = 1
-    opa = generate_opa(c, pa)  # generate online passive aggressive function
+    opa = generate_opa(pa, c)  # generate online passive aggressive function
 
     train_accuracies = []
     test_accuracies = []
@@ -113,12 +107,13 @@ def get_accuracy(df_x, df_y, w):
         x = row.to_numpy()
         y_pred.append(sign(np.dot(w, x)))
 
-    accuracy = ((1 - abs((np.asarray(y_pred) - df_y) / df_y)) * 100).mean()
+    accuracy = (y_pred == df_y).mean() * 100
     return accuracy
 
 
 def print_train_results(pa, train_result):
-    print(pa + "_______________________________________")
+    print("PA version : ", pa)
+    print("Iteration count : ")
     print(train_result[0])
     print(np.asarray(train_result[0]).mean())
     print(train_result[1])
@@ -127,8 +122,13 @@ def print_train_results(pa, train_result):
 
 
 if __name__ == '__main__':
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_colwidth', 30)
+
     df_x_train, df_y_train, df_x_test, df_y_test = preprocess_dataset()
 
-    print_train_results("pa0", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=0))
-    print_train_results("pa1", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=1))
-    print_train_results("pa2", train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=10, pa=2))
+    iter = int(input('Please enter the desired number of iterations (>0) : '))
+    pa = int(input('Please enter the version of the PA algorithm (0,1,2) : '))
+    c = int(input('Please enter the desired c value (>0) : '))
+
+    print_train_results(pa, train(df_x_train, df_y_train, df_x_test, df_y_test, n_iter=iter, pa=pa, c=1))
