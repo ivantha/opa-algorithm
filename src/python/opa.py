@@ -38,7 +38,7 @@ def preprocess_dataset():
     msk = ([True] * q) + ([False] * (len(data) - q))
     msk = np.asarray(msk)
 
-    # x_train, y_train, x_test, y_test
+    # data, x_train, y_train, x_test, y_test
     return data, df_X[msk], df_Y[msk], df_X[~msk], df_Y[~msk]
 
 
