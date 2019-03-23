@@ -1,122 +1,104 @@
 import numpy as np
-import pandas as pd
+import csv
 
 
 def sign(x):
     return -1 if x < 0 else (1 if x > 0 else 0)
 
 
-def save_output(df, df_y, y_pred, pa, n_iter, type):
-    pd_out = pd.concat(
-        [
-            df['sample_code_number'],
-            df_y,
-            y_pred
-        ],
-        axis=1,
-        sort=False,
-        join='inner'
-    )
-    pd_out.columns = ['sample_code_number', 'class', 'PREDICTION']
+def generateReport(data, y, pred, pa, n, type):
+    file_name = 'pa {} - iter {} - {}'.format(pa, n, type)
+    with open('./output/{}.csv'.format(file_name), mode='w') as outputFile:
+        writer = csv.writer(outputFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(['sample_code_number', 'class', 'PREDICTION'])
 
-    file_name = 'pa {} - iter {} - {}'.format(pa, n_iter, type)
-    pd_out.to_csv('./output/{}.csv'.format(file_name), encoding='utf-8', sep=',')
+        for i in range(len(y)):
+            writer.writerow([data[i, 0], y[i], pred[i]])
 
 
-def get_prediction(df_x, w):
-    y_pred = pd.Series()
+def predict(x, w):
+    y = []
+    for i in range(len(x)):
+        y.append(sign(np.dot(w, x[i])))
+    return y
 
-    for index, row in df_x.iterrows():
-        x = row.to_numpy()
-        y_pred.loc[index] = sign(np.dot(w, x))
 
-    return y_pred
+def getAccuracy(y, pred):
+    trues = 0
+    for i in range(len(y)):
+        if y[i] == pred[i]:
+            trues += 1
+    return trues / len(y) * 100
 
 
 if __name__ == '__main__':
-    # load data
-    data = pd.read_csv('../../data/datafile.csv', delimiter=",")
+    data = np.genfromtxt('../../data/datafile.csv', delimiter=',')
 
-    # assign column names > for easiness in referencing
-    data.columns = [
-        'sample_code_number',
-        'clump_thickness',
-        'uniformity_of_cell_size',
-        'uniformity_of_cell_shape',
-        'marginal_adhesion',
-        'single_epithelial_cell_size',
-        'bare_nuclei',
-        'bland_chromatin',
-        'normal_nucleoli',
-        'mitoses',
-        'class'
-    ]
+    # class : 4 -> 1, 2 -> -1
+    for i in range(len(data)):
+        if data[i, 10] == 2:
+            data[i, 10] = -1
+        else:
+            data[i, 10] = 1
 
-    # replace class (2, 4) with (-1, +1)
-    data['class'] = data['class'].map({4: 1, 2: -1})
+    X = data[:, 1:10]
+    Y = data[:, 10]
 
-    df_X = data.loc[:, 'clump_thickness':'mitoses']
-    df_Y = data['class']
+    xTrain = []
+    xTest = []
+    yTrain = []
+    yTest = []
+    for i in range(len(data)):
+        if i <= int(len(data) * 2 / 3):
+            xTrain.append(X[i])
+            yTrain.append(Y[i])
+        else:
+            xTest.append(X[i])
+            yTest.append(Y[i])
 
-    q = int(len(data) * 2 / 3)
-    msk = ([True] * q) + ([False] * (len(data) - q))
-    msk = np.asarray(msk)
-
-    df_x_train = df_X[msk]
-    df_x_test = df_X[~msk]
-    df_y_train = df_Y[msk]
-    df_y_test = df_Y[~msk]
-
-    n_iter = int(input('Please enter the desired number of iterations (>0) : '))
+    n = int(input('Please enter the desired number of iterations (>0) : '))
     pa = int(input('Please enter the version of the PA algorithm (0,1,2) : '))
-    c = int(input('Please enter the desired c value (>0) : '))
+    c = 1
 
-    num_features = len(df_x_train.columns)  # number of features
-    w = np.zeros(num_features)  # weights
+    # 9 features
+    w = np.zeros(9)
 
-    train_accuracies = []
-    test_accuracies = []
+    trainAccList = []
+    testAccList = []
 
-    for i in range(n_iter):
+    for iter in range(n):
         # train
-        for index, row in df_x_train.iterrows():
-            x = row.to_numpy()
-            y = df_y_train[index]
+        for i in range(len(xTrain)):
+            x = xTrain[i]
+            y = yTrain[i]
 
-            loss = max(0, 1 - (y * np.dot(w, x)))
+            l = max(0, 1 - (y * np.dot(w, x)))
 
-            lagrange_multiplier = None
+            k = None
             if pa == 0:
-                lagrange_multiplier = loss / np.power(np.linalg.norm(x), 2)
+                k = l / np.power(np.linalg.norm(x), 2)
             elif pa == 1:
-                lagrange_multiplier = min(c, loss / np.power(np.linalg.norm(x), 2))
+                k = min(c, l / np.power(np.linalg.norm(x), 2))
             elif pa == 2:
-                lagrange_multiplier = loss / (np.power(np.linalg.norm(x), 2) + (1 / (2 * c)))
+                k = l / (np.power(np.linalg.norm(x), 2) + (1 / (2 * c)))
 
-            w_new = w + (lagrange_multiplier * y * x)
-            w = w_new
+            w = w + (k * y * x)
 
-        # get predictions
-        y_pred_train = get_prediction(df_x_train, w)
-        y_pred_test = get_prediction(df_x_test, w)
+        yTrainPred = predict(xTrain, w)
+        yTestPred = predict(xTest, w)
 
-        # save output to a csv
-        save_output(data, df_y_train, y_pred_train, pa, i, 'train')
-        save_output(data, df_y_test, y_pred_test, pa, i, 'test')
+        generateReport(data, yTrain, yTrainPred, pa, iter, 'train')
+        generateReport(data, yTest, yTestPred, pa, iter, 'test')
 
-        # calculate accuracies
-        train_accuracy = (y_pred_train == df_y_train).mean() * 100
-        test_accuracy = (y_pred_test == df_y_test).mean() * 100
+        trainAccList.append(getAccuracy(yTrainPred, yTrain))
+        testAccList.append(getAccuracy(yTestPred, yTest))
 
-        train_accuracies.append(train_accuracy)
-        test_accuracies.append(test_accuracy)
+    print('Training accuracy')
+    for i in range(n):
+        print(trainAccList[i])
 
-    print('Accuracy of training set over the iterations -> ')
-    for i in range(n_iter):
-        print('{} : {}'.format(i + 1, train_accuracies[i]))
-    print('')
+    print('---------------------------------------------------------')
 
-    print('Accuracy of testing set over the iterations -> ')
-    for i in range(n_iter):
-        print('{} : {}'.format(i + 1, test_accuracies[i]))
-    print('')
+    print('Testing accuracy')
+    for i in range(n):
+        print(testAccList[i])
