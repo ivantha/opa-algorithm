@@ -28,7 +28,10 @@ def preprocess_dataset():
     # replace class (2, 4) with (-1, +1)
     data['class'] = data['class'].map({4: 1, 2: -1})
 
-    df_X = data.loc[:, 'clump_thickness':'mitoses']
+    # insert bias column of 1
+    data.insert(loc=1, column='bias', value=pd.Series(np.ones(len(data)), index=data.index))
+
+    df_X = data.loc[:, 'bias':'mitoses']
     df_Y = data['class']
 
     # mask to split data into train and test sets randomly
