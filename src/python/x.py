@@ -1,5 +1,6 @@
-import numpy as np
 import csv
+
+import numpy as np
 
 
 def sign(x):
@@ -42,6 +43,8 @@ if __name__ == '__main__':
             data[i, 10] = 1
 
     X = data[:, 1:10]
+    bias = np.ones(len(data))
+    X = np.insert(X, 1, values=bias, axis=1)
     Y = data[:, 10]
 
     xTrain = []
@@ -56,12 +59,12 @@ if __name__ == '__main__':
             xTest.append(X[i])
             yTest.append(Y[i])
 
-    n = int(input('Please enter the desired number of iterations (>0) : '))
-    pa = int(input('Please enter the version of the PA algorithm (0,1,2) : '))
+    n = int(input('Iterations : '))
+    pa = int(input('PA : '))
     c = 1
 
-    # 9 features
-    w = np.zeros(9)
+    # 9 features + bias = 10
+    w = np.zeros(10)
 
     trainAccList = []
     testAccList = []
